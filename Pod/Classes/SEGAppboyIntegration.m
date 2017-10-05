@@ -33,13 +33,13 @@
     if (![appboyAPIKey isKindOfClass:[NSString class]] || [appboyAPIKey length] == 0) {
       return nil;
     }
-    
+
     NSMutableDictionary *appboyOptions = [@{ABKSDKFlavorKey : @(SEGMENT)} mutableCopy];
     NSString *customEndpoint = self.settings[@"customEndpoint"];
     if (customEndpoint && [customEndpoint length] != 0) {
       appboyOptions[ABKEndpointKey] = customEndpoint;
     }
-    
+
     if ([NSThread isMainThread]) {
       [Appboy startWithApiKey:appboyAPIKey
                 inApplication:[UIApplication sharedApplication]
@@ -56,13 +56,13 @@
       });
     }
   }
-  
+
   if ([Appboy sharedInstance] != nil) {
     return self;
   } else {
     return nil;
   }
-  
+
 }
 
 - (void)identify:(SEGIdentifyPayload *)payload
@@ -78,7 +78,7 @@
     [[Appboy sharedInstance] changeUser:payload.userId];
     SEGLog(@"[[Appboy sharedInstance] changeUser:%@]", payload.userId);
   }
-  
+
   if ([payload.traits[@"birthday"] isKindOfClass:[NSString class]]) {
     NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
     NSLocale *enUSPOSIXLocale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
@@ -87,22 +87,22 @@
     [Appboy sharedInstance].user.dateOfBirth = [dateFormatter dateFromString:payload.traits[@"birthday"]];
     SEGLog(@"Logged [Appboy sharedInstance].user.dateOfBirth");
   }
-  
+
   if ([payload.traits[@"email"] isKindOfClass:[NSString class]]) {
     [Appboy sharedInstance].user.email = payload.traits[@"email"];
     SEGLog(@"Logged [Appboy sharedInstance].user.email");
   }
-  
+
   if ([payload.traits[@"firstName"] isKindOfClass:[NSString class]]) {
     [Appboy sharedInstance].user.firstName = payload.traits[@"firstName"];
     SEGLog(@"Logged [Appboy sharedInstance].user.firstName");
   }
-  
+
   if ([payload.traits[@"lastName"] isKindOfClass:[NSString class]]) {
     [Appboy sharedInstance].user.lastName = payload.traits[@"lastName"];
     SEGLog(@"Logged [Appboy sharedInstance].user.lastName");
   }
-  
+
   // Appboy only accepts "m" or "male" for gender male, and "f" or "female" for gender female, with case insensitive.
   if ([payload.traits[@"gender"] isKindOfClass:[NSString class]]) {
     NSString *gender = payload.traits[@"gender"];
@@ -114,27 +114,27 @@
       SEGLog(@"[[Appboy sharedInstance].user setGender:]");
     }
   }
-  
+
   if ([payload.traits[@"phone"] isKindOfClass:[NSString class]]) {
     [Appboy sharedInstance].user.phone = payload.traits[@"phone"];
     SEGLog(@"Logged [Appboy sharedInstance].user.phone");
   }
-  
+
   if ([payload.traits[@"address"] isKindOfClass:[NSDictionary class]]) {
     NSDictionary *address = payload.traits[@"address"];
     if ([address[@"city"] isKindOfClass:[NSString class]]) {
       [Appboy sharedInstance].user.homeCity = address[@"city"];
       SEGLog(@"Logged [Appboy sharedInstance].user.homeCity");
     }
-    
+
     if ([address[@"country"] isKindOfClass:[NSString class]]) {
       [Appboy sharedInstance].user.country = address[@"country"];
       SEGLog(@"Logged [Appboy sharedInstance].user.country");
     }
   }
-  
+
   NSArray *appboyTraits = @[@"birthday", @"email", @"firstName", @"lastName",  @"gender", @"phone", @"address", @"anonymousID"];
-  
+
   // Other traits. Iterate over all the traits and set them.
   for (NSString *key in payload.traits.allKeys) {
     if (![appboyTraits containsObject:key]) {
@@ -183,7 +183,7 @@
       return;
     }
   }
-  
+
   NSDecimalNumber *revenue = [SEGAppboyIntegration extractRevenue:payload.properties withKey:@"revenue"];
   if (revenue) {
     NSString *currency = @"USD";  // Make USD as the default currency.
@@ -191,7 +191,7 @@
         [(NSString *)payload.properties[@"currency"] length] == 3) {  // Currency should be an ISO 4217 currency code.
       currency = payload.properties[@"currency"];
     }
-    
+
     if (payload.properties != nil) {
       NSMutableDictionary *appboyProperties = [NSMutableDictionary dictionaryWithDictionary:payload.properties];
       appboyProperties[@"currency"] = nil;
