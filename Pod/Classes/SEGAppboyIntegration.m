@@ -251,7 +251,10 @@
 - (void)receivedRemoteNotification:(NSDictionary *)userInfo {
   if (![self logPushIfComesInBeforeAppboyInitializedWithIdentifier:nil]) {
     dispatch_async(dispatch_get_main_queue(), ^{
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
       [[Appboy sharedInstance] registerApplication:[UIApplication sharedApplication] didReceiveRemoteNotification:userInfo];
+#pragma clang diagnostic pop
     });
   }
   SEGLog(@"[[Appboy sharedInstance] registerApplication: didReceiveRemoteNotification:]");
@@ -259,7 +262,10 @@
 
 - (void)handleActionWithIdentifier:(NSString *)identifier forRemoteNotification:(NSDictionary *)userInfo {
   if (![self logPushIfComesInBeforeAppboyInitializedWithIdentifier:identifier]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     [[Appboy sharedInstance] getActionWithIdentifier:identifier forRemoteNotification:userInfo completionHandler:nil];
+#pragma clang diagnostic pop
   }
   SEGLog(@"[[Appboy sharedInstance] getActionWithIdentifier: forRemoteNotification: completionHandler:]");
 }
