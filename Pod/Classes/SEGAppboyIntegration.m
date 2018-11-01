@@ -74,7 +74,6 @@
     });
     return;
   }
-
   // Ensure that the userID is set and valid (i.e. a non-empty string).
   if (payload.userId != nil && [payload.userId length] != 0) {
     [[Appboy sharedInstance] changeUser:payload.userId];
