@@ -234,7 +234,7 @@
 - (void)registeredForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken
 {
   [[Appboy sharedInstance] registerDeviceToken:deviceToken];
-  SEGLog(@"[[Appboy sharedInstance] registerPushToken:]");
+  SEGLog(@"[[Appboy sharedInstance] registerDeviceToken:]");
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
