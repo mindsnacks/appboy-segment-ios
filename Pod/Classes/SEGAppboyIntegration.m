@@ -34,11 +34,8 @@
       return nil;
     }
 
-    NSMutableDictionary *appboyOptions = [@{ABKSDKFlavorKey : @(SEGMENT)} mutableCopy];
-    NSString *customEndpoint = self.settings[@"customEndpoint"];
-    if (customEndpoint && [customEndpoint length] != 0) {
-      appboyOptions[ABKEndpointKey] = customEndpoint;
-    }
+    NSMutableDictionary *appboyOptions = [@{ABKSDKFlavorKey : @(SEGMENT),
+                                            ABKEndpointKey: @"sdk.iad-01.braze.com"} mutableCopy];
 
     if ([NSThread isMainThread]) {
       [Appboy startWithApiKey:appboyAPIKey
