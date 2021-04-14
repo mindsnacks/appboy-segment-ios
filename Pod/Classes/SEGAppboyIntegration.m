@@ -3,15 +3,24 @@
 #import <Appboy_iOS_SDK/AppboyKit.h>
 #import <Appboy_iOS_SDK/ABKUser.h>
 #import <Appboy_iOS_SDK/ABKAttributionData.h>
+#elif SWIFT_PACKAGE
+#import "AppboyKit.h"
+#import "ABKUser.h"
+#import "ABKAttributionData.h"
 #else
 #import "Appboy-iOS-SDK/AppboyKit.h"
 #import "Appboy-iOS-SDK/ABKUser.h"
 #import "Appboy-iOS-SDK/ABKAttributionData.h"
 #endif
+#if __has_include(<Segment/SEGAnalyticsUtils.h>)
+#import <Segment/SEGAnalyticsUtils.h>
+#elif __has_include(<Analytics/SEGAnalyticsUtils.h>)
 #import <Analytics/SEGAnalyticsUtils.h>
+#endif
 #import "SEGAppboyIntegrationFactory.h"
 
 @interface Appboy(Segment)
+
 - (void) handleRemotePushNotification:(NSDictionary *)notification
                        withIdentifier:(NSString *)identifier
                     completionHandler:(void (^)(UIBackgroundFetchResult))completionHandler
@@ -27,6 +36,11 @@
 
 - (id)initWithSettings:(NSDictionary *)settings
 {
+  return [self initWithSettings:settings appboyOptions:nil];
+}
+
+- (id)initWithSettings:(NSDictionary *)settings appboyOptions:(NSDictionary *)appboyOptions
+{
   if (self = [super init]) {
     self.settings = settings;
     id appboyAPIKey = self.settings[@"apiKey"];
@@ -34,25 +48,32 @@
       return nil;
     }
     
-    NSMutableDictionary *appboyOptions = [@{ABKSDKFlavorKey : @(SEGMENT),
-                                            ABKEndpointKey: @"sdk.iad-01.braze.com"} mutableCopy];
+    NSMutableDictionary *mergedAppboyOptions;
+    if (appboyOptions) {
+     mergedAppboyOptions = [appboyOptions mutableCopy];
+     mergedAppboyOptions[ABKSDKFlavorKey] = @(SEGMENT);
+     mergedAppboyOptions[ABKEndpointKey] = @"sdk.iad-01.braze.com";
+    } else {
+      mergedAppboyOptions = [@{ABKSDKFlavorKey : @(SEGMENT),
+                               ABKEndpointKey: @"sdk.iad-01.braze.com"} mutableCopy];
+    }
     NSString *customEndpoint = self.settings[@"customEndpoint"];
     if (customEndpoint && [customEndpoint length] != 0) {
-      appboyOptions[ABKEndpointKey] = customEndpoint;
+      mergedAppboyOptions[ABKEndpointKey] = customEndpoint;
     }
 
     if ([NSThread isMainThread]) {
       [Appboy startWithApiKey:appboyAPIKey
                 inApplication:[UIApplication sharedApplication]
             withLaunchOptions:nil
-            withAppboyOptions:appboyOptions];
+            withAppboyOptions:mergedAppboyOptions];
       SEGLog(@"[Appboy startWithApiKey:inApplication:withLaunchOptions:withAppboyOptions:]");
     } else {
       dispatch_sync(dispatch_get_main_queue(), ^{
         [Appboy startWithApiKey:appboyAPIKey
                   inApplication:[UIApplication sharedApplication]
               withLaunchOptions:nil
-              withAppboyOptions:appboyOptions];
+              withAppboyOptions:mergedAppboyOptions];
         SEGLog(@"[Appboy startWithApiKey:inApplication:withLaunchOptions:withAppboyOptions:]");
       });
     }
@@ -74,7 +95,6 @@
     });
     return;
   }
-
   // Ensure that the userID is set and valid (i.e. a non-empty string).
   if (payload.userId != nil && [payload.userId length] != 0) {
     [[Appboy sharedInstance] changeUser:payload.userId];
@@ -187,7 +207,7 @@
   }
   
   NSDecimalNumber *revenue = [SEGAppboyIntegration extractRevenue:payload.properties withKey:@"revenue"];
-  if (revenue) {
+  if (revenue || [payload.event isEqualToString:@"Order Completed"]) {
     NSString *currency = @"USD";  // Make USD as the default currency.
     if ([payload.properties[@"currency"] isKindOfClass:[NSString class]] &&
         [(NSString *)payload.properties[@"currency"] length] == 3) {  // Currency should be an ISO 4217 currency code.
@@ -198,7 +218,26 @@
       NSMutableDictionary *appboyProperties = [NSMutableDictionary dictionaryWithDictionary:payload.properties];
       appboyProperties[@"currency"] = nil;
       appboyProperties[@"revenue"] = nil;
-      [[Appboy sharedInstance] logPurchase:payload.event inCurrency:currency atPrice:revenue withQuantity:1 andProperties:appboyProperties];
+      
+      if (appboyProperties[@"products"]) {
+        NSArray *products = [appboyProperties[@"products"] copy];
+        appboyProperties[@"products"] = nil;
+
+        for (NSDictionary *product in products) {
+          NSMutableDictionary *productDictionary = [product mutableCopy];
+          NSString *productId = productDictionary[@"productId"];
+          NSDecimalNumber *productRevenue = [SEGAppboyIntegration extractRevenue:productDictionary withKey:@"price"];
+          NSUInteger productQuantity = [productDictionary[@"quantity"] unsignedIntegerValue];
+          productDictionary[@"productId"] = nil;
+          productDictionary[@"price"] = nil;
+          productDictionary[@"quantity"] = nil;
+          NSMutableDictionary *productProperties = [appboyProperties mutableCopy];
+          [productProperties addEntriesFromDictionary:productDictionary];
+          [[Appboy sharedInstance] logPurchase:productId inCurrency:currency atPrice:productRevenue withQuantity:productQuantity andProperties:productProperties];
+        }
+      } else {
+        [[Appboy sharedInstance] logPurchase:payload.event inCurrency:currency atPrice:revenue withQuantity:1 andProperties:appboyProperties];
+      }
     } else {
       [[Appboy sharedInstance] logPurchase:payload.event inCurrency:currency atPrice:revenue withQuantity:1];
     }
@@ -235,7 +274,7 @@
 - (void)registeredForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken
 {
   [[Appboy sharedInstance] registerDeviceToken:deviceToken];
-  SEGLog(@"[[Appboy sharedInstance] registerPushToken:]");
+  SEGLog(@"[[Appboy sharedInstance] registerDeviceToken:]");
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
@@ -243,6 +282,7 @@
     if (![[UIApplication sharedApplication].delegate respondsToSelector:@selector(application:didReceiveRemoteNotification:fetchCompletionHandler:)]) {
       [self logPushIfComesInBeforeAppboyInitializedWithIdentifier:nil];
     }
+    [[SEGAppboyIntegrationFactory instance].appboyHelper applicationDidFinishLaunching];
   });
 }
 
@@ -262,26 +302,31 @@
   if (![self logPushIfComesInBeforeAppboyInitializedWithIdentifier:identifier]) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    [[Appboy sharedInstance] getActionWithIdentifier:identifier forRemoteNotification:userInfo completionHandler:nil];
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [[Appboy sharedInstance] getActionWithIdentifier:identifier forRemoteNotification:userInfo completionHandler:nil];
+    });
 #pragma clang diagnostic pop
   }
   SEGLog(@"[[Appboy sharedInstance] getActionWithIdentifier: forRemoteNotification: completionHandler:]");
 }
 
-- (BOOL) logPushIfComesInBeforeAppboyInitializedWithIdentifier:(NSString *)identifier {
+- (BOOL)logPushIfComesInBeforeAppboyInitializedWithIdentifier:(NSString *)identifier {
   NSDictionary *pushDictionary = [[SEGAppboyIntegrationFactory instance] getPushPayload];
   if (pushDictionary != nil && pushDictionary.count > 0) {
     // The existence of a push payload saved on the factory indicates that the push was received when
     // Appboy was not initialized yet, and thus the push was received in the inactive state.
     if ([[Appboy sharedInstance] respondsToSelector:@selector(handleRemotePushNotification:withIdentifier:completionHandler:applicationState:)]) {
-      [[Appboy sharedInstance] handleRemotePushNotification:pushDictionary
-                                             withIdentifier:identifier
-                                          completionHandler:nil
-                                           applicationState:UIApplicationStateInactive];
+      dispatch_async(dispatch_get_main_queue(), ^{
+        [[Appboy sharedInstance] handleRemotePushNotification:pushDictionary
+                                               withIdentifier:identifier
+                                            completionHandler:nil
+                                             applicationState:UIApplicationStateInactive];
+      });
     }
     [[SEGAppboyIntegrationFactory instance] saveRemoteNotification:nil];
     return YES;
   }
   return NO;
 }
+
 @end
